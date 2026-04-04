@@ -2,4 +2,3 @@ aiogram
 python-dotenv
 gTTS
 asyncpg
-aiosqlite
