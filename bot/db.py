@@ -1,160 +1,203 @@
-import aiosqlite
+import asyncpg
 import csv
 import datetime
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
-DB_PATH = "bot.db"
+load_dotenv()
 
-CREATE_TABLES_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER UNIQUE NOT NULL,
-    username TEXT,
-    ui_lang TEXT,
-    trans_lang TEXT,
-    level TEXT,
-    preferred_category TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-);
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-CREATE TABLE IF NOT EXISTS words (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    level TEXT NOT NULL,
-    category TEXT NOT NULL,
-    ru TEXT NOT NULL,
-    mn TEXT,
-    en TEXT,
-    image_url TEXT,
-    example_ru TEXT
-);
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is missing.")
 
-CREATE TABLE IF NOT EXISTS weekly_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    level TEXT NOT NULL,
-    week_id TEXT NOT NULL,
-    score INTEGER DEFAULT 0,
-    UNIQUE(user_id, level, week_id)
-);
+pool: asyncpg.Pool | None = None
 
-CREATE TABLE IF NOT EXISTS user_progress (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    level TEXT NOT NULL,
-    category TEXT NOT NULL,
-    next_word_id INTEGER DEFAULT 1,
-    updated_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(user_id, level, category)
-);
-CREATE TABLE IF NOT EXISTS user_stats (
-    user_id INTEGER PRIMARY KEY,
-    words_learned INTEGER DEFAULT 0,
-    quizzes_taken INTEGER DEFAULT 0,
-    correct_answers INTEGER DEFAULT 0,
-    total_score INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS grammar_topics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    topic_key TEXT UNIQUE NOT NULL,
 
-    title_ru TEXT NOT NULL,
-    title_mn TEXT,
-    title_en TEXT,
+async def get_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        pool = await asyncpg.create_pool(DATABASE_URL)
+    return pool
 
-    theory_ru TEXT NOT NULL,
-    theory_mn TEXT,
-    theory_en TEXT,
 
-    example1_ru TEXT,
-    example2_ru TEXT
-);
+async def init_db() -> None:
+    db = await get_pool()
 
-CREATE TABLE IF NOT EXISTS grammar_quiz (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    topic_key TEXT NOT NULL,
-    question_ru TEXT NOT NULL,
-    option1 TEXT NOT NULL,
-    option2 TEXT NOT NULL,
-    option3 TEXT NOT NULL,
-    correct_option INTEGER NOT NULL
-);
+    async with db.acquire() as conn:
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            telegram_id BIGINT UNIQUE NOT NULL,
+            username TEXT,
+            ui_lang TEXT,
+            trans_lang TEXT,
+            level TEXT,
+            preferred_category TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
 
-"""
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS words (
+            id SERIAL PRIMARY KEY,
+            level TEXT NOT NULL,
+            category TEXT NOT NULL,
+            ru TEXT NOT NULL,
+            mn TEXT,
+            en TEXT,
+            image_url TEXT,
+            example_ru TEXT
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_scores (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            level TEXT NOT NULL,
+            week_id TEXT NOT NULL,
+            score INTEGER DEFAULT 0,
+            UNIQUE(user_id, level, week_id)
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_progress (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            level TEXT NOT NULL,
+            category TEXT NOT NULL,
+            next_word_id INTEGER DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, level, category)
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_stats (
+            user_id BIGINT PRIMARY KEY,
+            words_learned INTEGER DEFAULT 0,
+            quizzes_taken INTEGER DEFAULT 0,
+            correct_answers INTEGER DEFAULT 0,
+            total_score INTEGER DEFAULT 0
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS weak_words (
+            user_id BIGINT,
+            word_id INTEGER,
+            wrong_count INTEGER DEFAULT 1,
+            PRIMARY KEY (user_id, word_id)
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS grammar_topics (
+            id SERIAL PRIMARY KEY,
+            topic_key TEXT UNIQUE NOT NULL,
+            title_ru TEXT NOT NULL,
+            title_mn TEXT,
+            title_en TEXT,
+            theory_ru TEXT NOT NULL,
+            theory_mn TEXT,
+            theory_en TEXT,
+            example1_ru TEXT,
+            example2_ru TEXT
+        );
+        """)
+
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS grammar_quiz (
+            id SERIAL PRIMARY KEY,
+            topic_key TEXT NOT NULL,
+            question_ru TEXT NOT NULL,
+            option1 TEXT NOT NULL,
+            option2 TEXT NOT NULL,
+            option3 TEXT NOT NULL,
+            correct_option INTEGER NOT NULL
+        );
+        """)
+
 
 async def ensure_user_stats(user_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)",
-            (user_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_stats (user_id)
+            VALUES ($1)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id,
         )
-        await db.commit()
 
 
 async def increment_words_learned(user_id: int, amount: int = 1) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
             """
             INSERT INTO user_stats (user_id, words_learned)
-            VALUES (?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET
-                words_learned = words_learned + excluded.words_learned
+            VALUES ($1, $2)
+            ON CONFLICT (user_id) DO UPDATE SET
+                words_learned = user_stats.words_learned + EXCLUDED.words_learned
             """,
-            (user_id, amount),
+            user_id,
+            amount,
         )
-        await db.commit()
 
 
 async def update_quiz_stats(user_id: int, correct: int, score: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
             """
             INSERT INTO user_stats (user_id, quizzes_taken, correct_answers, total_score)
-            VALUES (?, 1, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET
-                quizzes_taken = quizzes_taken + 1,
-                correct_answers = correct_answers + excluded.correct_answers,
-                total_score = total_score + excluded.total_score
+            VALUES ($1, 1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE SET
+                quizzes_taken = user_stats.quizzes_taken + 1,
+                correct_answers = user_stats.correct_answers + EXCLUDED.correct_answers,
+                total_score = user_stats.total_score + EXCLUDED.total_score
             """,
-            (user_id, correct, score),
+            user_id,
+            correct,
+            score,
         )
-        await db.commit()
 
 
 async def get_user_stats(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT words_learned, quizzes_taken, correct_answers, total_score
             FROM user_stats
-            WHERE user_id=?
+            WHERE user_id = $1
             """,
-            (user_id,),
+            user_id,
         )
-        row = await cur.fetchone()
         if not row:
             return (0, 0, 0, 0)
-        return row
-async def init_db() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.executescript(CREATE_TABLES_SQL)
-        await db.execute("""
-CREATE TABLE IF NOT EXISTS weak_words (
-    user_id INTEGER,
-    word_id INTEGER,
-    wrong_count INTEGER DEFAULT 1,
-    PRIMARY KEY (user_id, word_id)
-)
-""")
-        await db.commit()
+        return tuple(row)
+
+
 async def add_weak_word(user_id: int, word_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO weak_words (user_id, word_id, wrong_count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(user_id, word_id)
-        DO UPDATE SET wrong_count = wrong_count + 1
-        """, (user_id, word_id))
-        await db.commit()
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO weak_words (user_id, word_id, wrong_count)
+            VALUES ($1, $2, 1)
+            ON CONFLICT (user_id, word_id)
+            DO UPDATE SET wrong_count = weak_words.wrong_count + 1
+            """,
+            user_id,
+            word_id,
+        )
+
 
 async def import_words_from_csv(csv_path: str = "words.csv") -> int:
     path = Path(csv_path)
@@ -187,209 +230,221 @@ async def import_words_from_csv(csv_path: str = "words.csv") -> int:
     if not rows:
         return 0
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("SELECT COUNT(*) FROM words")
-        count = (await cur.fetchone())[0]
+    db = await get_pool()
+    async with db.acquire() as conn:
+        count = await conn.fetchval("SELECT COUNT(*) FROM words")
 
         if count == 0:
-            await db.executemany(
-                "INSERT INTO words (level, category, ru, mn, en, image_url, example_ru) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            await conn.executemany(
+                """
+                INSERT INTO words (level, category, ru, mn, en, image_url, example_ru)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
                 rows,
             )
-            await db.commit()
             return len(rows)
 
     return 0
 
 
 async def ensure_user(telegram_id: int, username: str | None) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO users (telegram_id, username) VALUES (?, ?)",
-            (telegram_id, username),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO users (telegram_id, username)
+            VALUES ($1, $2)
+            ON CONFLICT (telegram_id) DO NOTHING
+            """,
+            telegram_id,
+            username,
         )
-        await db.commit()
 
 
 async def set_user_ui_lang(telegram_id: int, ui_lang: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET ui_lang=? WHERE telegram_id=?",
-            (ui_lang, telegram_id),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET ui_lang = $1 WHERE telegram_id = $2",
+            ui_lang,
+            telegram_id,
         )
-        await db.commit()
 
 
 async def set_user_trans_lang(telegram_id: int, trans_lang: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET trans_lang=? WHERE telegram_id=?",
-            (trans_lang, telegram_id),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET trans_lang = $1 WHERE telegram_id = $2",
+            trans_lang,
+            telegram_id,
         )
-        await db.commit()
 
 
 async def set_user_level(telegram_id: int, level: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET level=? WHERE telegram_id=?",
-            (level, telegram_id),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET level = $1 WHERE telegram_id = $2",
+            level,
+            telegram_id,
         )
-        await db.commit()
 
 
 async def set_user_category(telegram_id: int, category: str) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET preferred_category=? WHERE telegram_id=?",
-            (category, telegram_id),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET preferred_category = $1 WHERE telegram_id = $2",
+            category,
+            telegram_id,
         )
-        await db.commit()
 
 
 async def get_user_level(telegram_id: int) -> str | None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT level FROM users WHERE telegram_id=?",
-            (telegram_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT level FROM users WHERE telegram_id = $1",
+            telegram_id,
         )
-        row = await cur.fetchone()
-        return row[0] if row and row[0] else None
 
 
 async def get_user_category(telegram_id: int) -> str | None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT preferred_category FROM users WHERE telegram_id=?",
-            (telegram_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT preferred_category FROM users WHERE telegram_id = $1",
+            telegram_id,
         )
-        row = await cur.fetchone()
-        return row[0] if row and row[0] else None
 
 
 async def get_user_trans_lang(telegram_id: int) -> str | None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT trans_lang FROM users WHERE telegram_id=?",
-            (telegram_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT trans_lang FROM users WHERE telegram_id = $1",
+            telegram_id,
         )
-        row = await cur.fetchone()
-        return row[0] if row and row[0] else None
 
 
 async def get_user_ui_lang(telegram_id: int) -> str | None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT ui_lang FROM users WHERE telegram_id=?",
-            (telegram_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT ui_lang FROM users WHERE telegram_id = $1",
+            telegram_id,
         )
-        row = await cur.fetchone()
-        return row[0] if row and row[0] else None
 
 
 async def get_user(telegram_id: int) -> dict | None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT telegram_id, username, ui_lang, trans_lang, level, preferred_category, created_at
             FROM users
-            WHERE telegram_id=?
+            WHERE telegram_id = $1
             """,
-            (telegram_id,),
+            telegram_id,
         )
-        row = await cur.fetchone()
         if not row:
             return None
-
-        return {
-            "telegram_id": row[0],
-            "username": row[1],
-            "ui_lang": row[2],
-            "trans_lang": row[3],
-            "level": row[4],
-            "preferred_category": row[5],
-            "created_at": row[6],
-        }
+        return dict(row)
 
 
 async def get_next_word_for_user(user_id: int, level: str, category: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
             """
-            INSERT OR IGNORE INTO user_progress (user_id, level, category, next_word_id)
-            VALUES (?, ?, ?, 1)
+            INSERT INTO user_progress (user_id, level, category, next_word_id)
+            VALUES ($1, $2, $3, 1)
+            ON CONFLICT (user_id, level, category) DO NOTHING
             """,
-            (user_id, level, category),
+            user_id,
+            level,
+            category,
         )
 
-        cur = await db.execute(
+        next_word_id = await conn.fetchval(
             """
             SELECT next_word_id
             FROM user_progress
-            WHERE user_id=? AND level=? AND category=?
+            WHERE user_id = $1 AND level = $2 AND category = $3
             """,
-            (user_id, level, category),
+            user_id,
+            level,
+            category,
         )
-        row = await cur.fetchone()
-        next_word_id = row[0] if row else 1
+        next_word_id = next_word_id or 1
 
-        cur = await db.execute(
+        word = await conn.fetchrow(
             """
             SELECT id, ru, mn, en, image_url, example_ru
             FROM words
-            WHERE level=? AND category=? AND id >= ?
+            WHERE level = $1 AND category = $2 AND id >= $3
             ORDER BY id ASC
             LIMIT 1
             """,
-            (level, category, next_word_id),
+            level,
+            category,
+            next_word_id,
         )
-        word = await cur.fetchone()
+
         if not word:
             return None
 
         word_id, ru, mn, en, image_url, example_ru = word
 
-        await db.execute(
+        await conn.execute(
             """
             UPDATE user_progress
-            SET next_word_id=?, updated_at=datetime('now')
-            WHERE user_id=? AND level=? AND category=?
+            SET next_word_id = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $2 AND level = $3 AND category = $4
             """,
-            (word_id + 1, user_id, level, category),
+            word_id + 1,
+            user_id,
+            level,
+            category,
         )
-        await db.commit()
 
         return (ru, mn, en, image_url, example_ru)
 
 
 async def get_random_word_for_level(level: str, category: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT ru, mn, en, image_url, example_ru
             FROM words
-            WHERE level=? AND category=?
+            WHERE level = $1 AND category = $2
             ORDER BY RANDOM()
             LIMIT 1
             """,
-            (level, category),
+            level,
+            category,
         )
-        return await cur.fetchone()
+        return tuple(row) if row else None
 
 
 async def get_quiz_options(level: str, category: str, limit: int = 4):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT id, ru, mn, en
             FROM words
-            WHERE level=? AND category=?
+            WHERE level = $1 AND category = $2
             ORDER BY RANDOM()
-            LIMIT ?
+            LIMIT $3
             """,
-            (level, category, limit),
+            level,
+            category,
+            limit,
         )
-        return await cur.fetchall()
+        return [tuple(row) for row in rows]
 
 
 def current_week_id() -> str:
@@ -399,158 +454,190 @@ def current_week_id() -> str:
 
 async def add_weekly_score(user_id: int, level: str, score_delta: int) -> None:
     week_id = current_week_id()
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        await conn.execute(
             """
             INSERT INTO weekly_scores (user_id, level, week_id, score)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(user_id, level, week_id) DO UPDATE SET
-              score = score + excluded.score
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, level, week_id) DO UPDATE SET
+                score = weekly_scores.score + EXCLUDED.score
             """,
-            (user_id, level, week_id, score_delta),
+            user_id,
+            level,
+            week_id,
+            score_delta,
         )
-        await db.commit()
+
+
 async def get_leaderboard(level: str, limit: int = 10):
     week_id = current_week_id()
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT users.username, weekly_scores.score
             FROM weekly_scores
             JOIN users ON users.telegram_id = weekly_scores.user_id
-            WHERE weekly_scores.level=? AND weekly_scores.week_id=?
+            WHERE weekly_scores.level = $1 AND weekly_scores.week_id = $2
             ORDER BY weekly_scores.score DESC
-            LIMIT ?
+            LIMIT $3
             """,
-            (level, week_id, limit),
+            level,
+            week_id,
+            limit,
         )
-        return await cur.fetchall()
+        return [tuple(row) for row in rows]
+
+
 async def get_user_rank(user_id: int, level: str):
     week_id = current_week_id()
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT user_id, score
             FROM weekly_scores
-            WHERE level=? AND week_id=?
+            WHERE level = $1 AND week_id = $2
             ORDER BY score DESC
             """,
-            (level, week_id),
+            level,
+            week_id,
         )
 
-        rows = await cur.fetchall()
-
         rank = 1
-        for uid, score in rows:
+        for row in rows:
+            uid, score = row
             if uid == user_id:
                 return rank, score
             rank += 1
 
     return None, 0
+
+
 async def get_weak_words(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("""
-        SELECT w.ru, w.mn, w.en
-        FROM weak_words ww
-        JOIN words w ON w.id = ww.word_id
-        WHERE ww.user_id = ?
-        ORDER BY ww.wrong_count DESC
-        LIMIT 10
-        """, (user_id,))
-        return await cursor.fetchall()
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT w.ru, w.mn, w.en
+            FROM weak_words ww
+            JOIN words w ON w.id = ww.word_id
+            WHERE ww.user_id = $1
+            ORDER BY ww.wrong_count DESC
+            LIMIT 10
+            """,
+            user_id,
+        )
+        return [tuple(row) for row in rows]
+
+
 async def get_quiz_sentence_options(level: str, category: str, limit: int = 4):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT id, ru, mn, en, example_ru
             FROM words
-            WHERE level=? AND category=? AND example_ru IS NOT NULL AND example_ru != ''
+            WHERE level = $1 AND category = $2
+              AND example_ru IS NOT NULL
+              AND example_ru != ''
             ORDER BY RANDOM()
-            LIMIT ?
+            LIMIT $3
             """,
-            (level, category, limit),
+            level,
+            category,
+            limit,
         )
-        return await cur.fetchall()
+        return [tuple(row) for row in rows]
+
+
 async def find_word(query: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT level, category, ru, mn, en, example_ru
             FROM words
-            WHERE lower(ru)=lower(?)
-               OR lower(mn)=lower(?)
-               OR lower(en)=lower(?)
+            WHERE LOWER(ru) = LOWER($1)
+               OR LOWER(mn) = LOWER($1)
+               OR LOWER(en) = LOWER($1)
             LIMIT 1
             """,
-            (query, query, query),
+            query,
         )
-        return await cur.fetchone()
+        return tuple(row) if row else None
+
+
 async def get_weak_quiz_options(user_id: int, limit: int = 4):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT w.id, w.ru, w.mn, w.en
             FROM weak_words ww
             JOIN words w ON w.id = ww.word_id
-            WHERE ww.user_id = ?
+            WHERE ww.user_id = $1
             ORDER BY ww.wrong_count DESC, RANDOM()
-            LIMIT ?
+            LIMIT $2
             """,
-            (user_id, limit),
+            user_id,
+            limit,
         )
-        return await cur.fetchall()
+        return [tuple(row) for row in rows]
+
+
 async def improve_weak_word(user_id: int, word_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        wrong_count = await conn.fetchval(
             """
             SELECT wrong_count
             FROM weak_words
-            WHERE user_id=? AND word_id=?
+            WHERE user_id = $1 AND word_id = $2
             """,
-            (user_id, word_id),
+            user_id,
+            word_id,
         )
-        row = await cur.fetchone()
 
-        if not row:
+        if wrong_count is None:
             return
 
-        wrong_count = row[0]
-
         if wrong_count <= 1:
-            await db.execute(
-                "DELETE FROM weak_words WHERE user_id=? AND word_id=?",
-                (user_id, word_id),
+            await conn.execute(
+                "DELETE FROM weak_words WHERE user_id = $1 AND word_id = $2",
+                user_id,
+                word_id,
             )
         else:
-            await db.execute(
+            await conn.execute(
                 """
                 UPDATE weak_words
                 SET wrong_count = wrong_count - 1
-                WHERE user_id=? AND word_id=?
+                WHERE user_id = $1 AND word_id = $2
                 """,
-                (user_id, word_id),
+                user_id,
+                word_id,
             )
 
-        await db.commit()
-async def find_word_anywhere(word: str):
-    async with aiosqlite.connect(DB_PATH) as db:
 
-        cur = await db.execute(
+async def find_word_anywhere(word: str):
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT ru, mn, en, image_url
             FROM words
-            WHERE
-                LOWER(ru)=?
-                OR LOWER(mn)=?
-                OR LOWER(en)=?
+            WHERE LOWER(ru) = LOWER($1)
+               OR LOWER(mn) = LOWER($1)
+               OR LOWER(en) = LOWER($1)
             LIMIT 1
             """,
-            (word, word, word),
+            word,
         )
+        return tuple(row) if row else None
 
-        return await cur.fetchone()
+
 async def seed_grammar():
     topics = [
         (
@@ -654,73 +741,76 @@ async def seed_grammar():
         ("adjectives", "Правильно: ___ книга", "интересный", "интересная", "интересное", 2),
     ]
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    db = await get_pool()
+    async with db.acquire() as conn:
         for row in topics:
-            await db.execute(
+            await conn.execute(
                 """
-                INSERT OR IGNORE INTO grammar_topics
+                INSERT INTO grammar_topics
                 (topic_key, title_ru, title_mn, title_en, theory_ru, theory_mn, theory_en, example1_ru, example2_ru)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (topic_key) DO NOTHING
                 """,
-                row,
+                *row,
             )
 
         for row in quiz_rows:
-            await db.execute(
+            await conn.execute(
                 """
-                INSERT OR IGNORE INTO grammar_quiz
+                INSERT INTO grammar_quiz
                 (topic_key, question_ru, option1, option2, option3, correct_option)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 """,
-                row,
+                *row,
             )
 
-        await db.commit()
 
 async def get_grammar_topics():
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
             "SELECT topic_key, title_ru FROM grammar_topics ORDER BY id"
         )
-        return await cur.fetchall()
+        return [tuple(row) for row in rows]
 
 
 async def get_grammar_topic(topic_key: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT
                 title_ru, title_mn, title_en,
                 theory_ru, theory_mn, theory_en,
                 example1_ru, example2_ru
             FROM grammar_topics
-            WHERE topic_key = ?
+            WHERE topic_key = $1
             """,
-            (topic_key,),
+            topic_key,
         )
-        return await cur.fetchone()
+        return tuple(row) if row else None
 
 
 async def get_grammar_quiz(topic_key: str):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
+    db = await get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT id, question_ru, option1, option2, option3, correct_option
             FROM grammar_quiz
-            WHERE topic_key=?
+            WHERE topic_key = $1
             ORDER BY RANDOM()
             LIMIT 1
             """,
-            (topic_key,),
+            topic_key,
         )
-        return await cur.fetchone()
+        return tuple(row) if row else None
 
 
 async def get_grammar_quiz_answer(quiz_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT correct_option FROM grammar_quiz WHERE id=?",
-            (quiz_id,),
+    db = await get_pool()
+    async with db.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT correct_option FROM grammar_quiz WHERE id = $1",
+            quiz_id,
         )
-        row = await cur.fetchone()
-        return row[0] if row else None
