@@ -1,17 +1,44 @@
 level,category,ru,mn,en,image_url,example_ru
-A1,general,вода,ус,water,https://commons.wikimedia.org/wiki/Special:Redirect/file/Glass-of-water.jpg,Я пью воду каждый день.
-A1,general,книга,ном,book,https://commons.wikimedia.org/wiki/Special:Redirect/file/Books!.jpg,Это моя книга.
-A2,engineering,программа,програм,program,,Эта программа помогает студентам учить слова.
-A2,economics,рынок,зах зээл,market,,На рынке продают овощи и фрукты.
-B1,engineering,алгоритм,алгоритм,algorithm,,Алгоритм используется в программировании.
-B1,economics,прибыль,ашиг,profit,,Компания получила прибыль в этом году.
-B2,engineering,архитектура системы,системийн архитектур,system architecture,,Архитектура системы определяет взаимодействие компонентов.
-B2,economics,финансовый анализ,санхүүгийн шинжилгээ,financial analysis,,Финансовый анализ помогает оценить состояние компании.
-A2,engineering,машина,машин,machine,,Эта машина работает на заводе.
-A2,engineering,деталь,эд анги,part,,Эта деталь используется в двигателе.
-A2,engineering,инструмент,багаж,tool,,Инженер использует специальный инструмент.
-B1,engineering,система,систем,system,,Эта система управляет процессом.
-B1,engineering,модель,загвар,model,,Инженеры создают модель устройства.
-B1,engineering,устройство,төхөөрөмж,device,,Это устройство измеряет температуру.
-B2,engineering,автоматизация,автоматжуулалт,automation,,Автоматизация повышает эффективность производства.
-B2,engineering,технический анализ,техникийн шинжилгээ,technical analysis,,Технический анализ помогает улучшить систему.
+A1,general,вода,ус,water,https://upload.wikimedia.org/wikipedia/commons/0/0b/Glass_of_water.jpg,Я пью воду каждый день.
+A1,general,книга,ном,book,https://upload.wikimedia.org/wikipedia/commons/1/1d/Books.jpg,Это моя книга.
+A1,general,дом,байшин,house,https://upload.wikimedia.org/wikipedia/commons/3/3b/House.jpg,Это мой дом.
+A1,general,машина,машин,car,https://upload.wikimedia.org/wikipedia/commons/7/7b/Car.jpg,Моя машина новая.
+A1,general,студент,оюутан,student,https://upload.wikimedia.org/wikipedia/commons/3/37/Student.jpg,Он студент университета.
+A1,general,город,хот,city,https://upload.wikimedia.org/wikipedia/commons/c/c0/City.jpg,Это большой город.
+A1,general,школа,сургууль,school,https://upload.wikimedia.org/wikipedia/commons/3/3e/School.jpg,Школа находится рядом.
+A1,general,друг,найз,friend,https://upload.wikimedia.org/wikipedia/commons/5/59/Friends.jpg,Он мой лучший друг.
+A1,general,работа,ажил,work,https://upload.wikimedia.org/wikipedia/commons/4/4f/Office_work.jpg,Я иду на работу.
+A1,general,еда,хоол,food,https://upload.wikimedia.org/wikipedia/commons/6/6f/Food.jpg,Еда очень вкусная.
+
+A2,engineering,машина,машин,machine,https://upload.wikimedia.org/wikipedia/commons/9/9c/Industrial_machine.jpg,Эта машина работает на заводе.
+A2,engineering,деталь,эд анги,part,https://upload.wikimedia.org/wikipedia/commons/e/e0/Mechanical_part.jpg,Эта деталь используется в двигателе.
+A2,engineering,инструмент,багаж,tool,https://upload.wikimedia.org/wikipedia/commons/4/4b/Tools.jpg,Инженер использует специальный инструмент.
+A2,engineering,двигатель,хөдөлгүүр,engine,https://upload.wikimedia.org/wikipedia/commons/a/a1/Engine.jpg,Двигатель работает хорошо.
+A2,engineering,схема,схем,scheme,https://upload.wikimedia.org/wikipedia/commons/5/5c/Electrical_scheme.jpg,Схема показывает соединения.
+A2,engineering,программа,програм,program,https://upload.wikimedia.org/wikipedia/commons/3/32/Computer_program.jpg,Эта программа помогает студентам.
+A2,engineering,компьютер,компьютер,computer,https://upload.wikimedia.org/wikipedia/commons/5/5e/Computer.jpg,Компьютер используется для работы.
+A2,engineering,технология,технологи,technology,https://upload.wikimedia.org/wikipedia/commons/0/0c/Technology.jpg,Новая технология развивается быстро.
+A2,engineering,конструкция,хийц,construction,https://upload.wikimedia.org/wikipedia/commons/7/70/Engineering_construction.jpg,Конструкция очень сложная.
+A2,engineering,чертёж,зураг төсөл,drawing,https://upload.wikimedia.org/wikipedia/commons/1/10/Engineering_drawing.jpg,Инженер делает чертёж.
+
+B1,engineering,алгоритм,алгоритм,algorithm,https://upload.wikimedia.org/wikipedia/commons/7/7e/Algorithm_flowchart.jpg,Алгоритм используется в программировании.
+B1,engineering,система,систем,system,https://upload.wikimedia.org/wikipedia/commons/6/69/System_diagram.jpg,Эта система управляет процессом.
+B1,engineering,модель,загвар,model,https://upload.wikimedia.org/wikipedia/commons/4/43/Engineering_model.jpg,Инженеры создают модель устройства.
+B1,engineering,устройство,төхөөрөмж,device,https://upload.wikimedia.org/wikipedia/commons/8/8e/Electronic_device.jpg,Это устройство измеряет температуру.
+B1,engineering,процесс,процесс,process,https://upload.wikimedia.org/wikipedia/commons/5/52/Industrial_process.jpg,Процесс автоматизирован.
+B1,engineering,разработка,хөгжүүлэлт,development,https://upload.wikimedia.org/wikipedia/commons/2/20/Software_development.jpg,Разработка проекта продолжается.
+B1,engineering,контроль,хяналт,control,https://upload.wikimedia.org/wikipedia/commons/4/4d/Control_panel.jpg,Контроль системы важен.
+B1,engineering,данные,өгөгдөл,data,https://upload.wikimedia.org/wikipedia/commons/3/36/Data.jpg,Данные анализируются.
+B1,engineering,инновация,шинэчлэл,innovation,https://upload.wikimedia.org/wikipedia/commons/9/91/Innovation.jpg,Инновации меняют технологии.
+B1,engineering,анализ,шинжилгээ,analysis,https://upload.wikimedia.org/wikipedia/commons/a/a6/Data_analysis.jpg,Анализ помогает принять решение.
+
+B2,engineering,автоматизация,автоматжуулалт,automation,https://upload.wikimedia.org/wikipedia/commons/8/8a/Automation.jpg,Автоматизация повышает эффективность производства.
+B2,engineering,архитектура системы,системийн архитектур,system architecture,https://upload.wikimedia.org/wikipedia/commons/0/0f/System_architecture.jpg,Архитектура системы определяет взаимодействие компонентов.
+B2,engineering,технический анализ,техникийн шинжилгээ,technical analysis,https://upload.wikimedia.org/wikipedia/commons/3/3c/Technical_analysis.jpg,Технический анализ помогает улучшить систему.
+B2,engineering,оптимизация,оновчлол,optimization,https://upload.wikimedia.org/wikipedia/commons/4/40/Optimization.jpg,Оптимизация повышает производительность.
+B2,engineering,инфраструктура,дэд бүтэц,infrastructure,https://upload.wikimedia.org/wikipedia/commons/1/17/Infrastructure.jpg,Инфраструктура системы сложная.
+B2,engineering,платформа,платформ,platform,https://upload.wikimedia.org/wikipedia/commons/5/5b/Software_platform.jpg,Платформа поддерживает приложение.
+B2,engineering,интеграция,нэгдэл,integration,https://upload.wikimedia.org/wikipedia/commons/4/4e/System_integration.jpg,Интеграция систем необходима.
+B2,engineering,архивация,архивлах,archiving,https://upload.wikimedia.org/wikipedia/commons/e/e3/Data_backup.jpg,Архивация данных важна.
+B2,engineering,производительность,гүйцэтгэл,performance,https://upload.wikimedia.org/wikipedia/commons/6/6b/Performance_chart.jpg,Производительность системы выросла.
+B2,engineering,масштабируемость,өргөтгөх чадвар,scalability,https://upload.wikimedia.org/wikipedia/commons/2/2c/Scalability.jpg,Масштабируемость системы важна.
