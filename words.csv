@@ -1,0 +1,17 @@
+level,category,ru,mn,en,image_url,example_ru
+A1,general,вода,ус,water,https://commons.wikimedia.org/wiki/Special:Redirect/file/Glass-of-water.jpg,Я пью воду каждый день.
+A1,general,книга,ном,book,https://commons.wikimedia.org/wiki/Special:Redirect/file/Books!.jpg,Это моя книга.
+A2,engineering,программа,програм,program,,Эта программа помогает студентам учить слова.
+A2,economics,рынок,зах зээл,market,,На рынке продают овощи и фрукты.
+B1,engineering,алгоритм,алгоритм,algorithm,,Алгоритм используется в программировании.
+B1,economics,прибыль,ашиг,profit,,Компания получила прибыль в этом году.
+B2,engineering,архитектура системы,системийн архитектур,system architecture,,Архитектура системы определяет взаимодействие компонентов.
+B2,economics,финансовый анализ,санхүүгийн шинжилгээ,financial analysis,,Финансовый анализ помогает оценить состояние компании.
+A2,engineering,машина,машин,machine,,Эта машина работает на заводе.
+A2,engineering,деталь,эд анги,part,,Эта деталь используется в двигателе.
+A2,engineering,инструмент,багаж,tool,,Инженер использует специальный инструмент.
+B1,engineering,система,систем,system,,Эта система управляет процессом.
+B1,engineering,модель,загвар,model,,Инженеры создают модель устройства.
+B1,engineering,устройство,төхөөрөмж,device,,Это устройство измеряет температуру.
+B2,engineering,автоматизация,автоматжуулалт,automation,,Автоматизация повышает эффективность производства.
+B2,engineering,технический анализ,техникийн шинжилгээ,technical analysis,,Технический анализ помогает улучшить систему.
