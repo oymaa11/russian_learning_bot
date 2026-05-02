@@ -94,16 +94,24 @@ async def get_user_settings(telegram_id: int) -> dict:
         )
     if row:
         return {
-            "ui_lang":    row["ui_lang"]    or "mn",
+            "ui_lang":    row["ui_lang"]    or "ru",
             "trans_lang": row["trans_lang"] or "mn",
             "category":   row["category"]   or "general",
         }
-    return {"ui_lang": "mn", "trans_lang": "mn", "category": "general"}
+    return {"ui_lang": "ru", "trans_lang": "mn", "category": "general"}
 
 
 async def get_ui_lang(telegram_id: int) -> str:
     s = await get_user_settings(telegram_id)
     return s["ui_lang"]
+async def get_trans_lang(telegram_id: int) -> str:
+    s = await get_user_settings(telegram_id)
+    return s["trans_lang"]
+
+
+async def get_category(telegram_id: int) -> str:
+    s = await get_user_settings(telegram_id)
+    return s["category"]
 
 
 async def set_ui_lang(telegram_id: int, ui_lang: str) -> None:
