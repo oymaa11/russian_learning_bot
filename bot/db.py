@@ -36,7 +36,7 @@ CREATE_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS users (
     telegram_id  BIGINT PRIMARY KEY,
     username     TEXT,
-    ui_lang      TEXT DEFAULT 'mn',
+    ui_lang      TEXT DEFAULT 'ru',
     trans_lang   TEXT DEFAULT 'mn',
     category     TEXT DEFAULT 'general',
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP

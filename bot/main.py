@@ -346,16 +346,34 @@ async def category_menu_handler(message: Message):
     await message.answer(tx(ui_lang, "choose_category"), reply_markup=category_menu(ui_lang))
 
 
-@dp.message(F.text.in_(["📚 Ерөнхий", "⚙️ Инженер", "💰 Эдийн засаг"]))
+@dp.message(F.text.in_([
+    "📚 Общий", "⚙️ Инженерия", "💰 Экономика",
+    "📚 Ерөнхий", "⚙️ Инженер", "💰 Эдийн засаг",
+    "📚 General", "⚙️ Engineering", "💰 Economics",
+]))
 async def set_category_handler(message: Message):
     mapping = {
-        "📚 Ерөнхий":    "general",
-        "⚙️ Инженер":    "engineering",
-        "💰 Эдийн засаг":"economics",
+        "📚 Общий": "general",
+        "⚙️ Инженерия": "engineering",
+        "💰 Экономика": "economics",
+
+        "📚 Ерөнхий": "general",
+        "⚙️ Инженер": "engineering",
+        "💰 Эдийн засаг": "economics",
+
+        "📚 General": "general",
+        "⚙️ Engineering": "engineering",
+        "💰 Economics": "economics",
     }
+
     await set_category(message.from_user.id, mapping[message.text])
+
     ui_lang = await get_ui_lang(message.from_user.id)
-    await message.answer(tx(ui_lang, "saved"), reply_markup=main_menu(ui_lang))
+
+    await message.answer(
+        await tr(message.from_user.id, "saved"), # type: ignore
+        reply_markup=main_menu(ui_lang),
+    )
 
 
 # ── ℹ️ About ──────────────────────────────────
