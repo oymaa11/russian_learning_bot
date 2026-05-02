@@ -13,7 +13,6 @@ TEXT = {
         "help": "📖 Как пользоваться ботом",
         "back": "⬅️ Назад",
         "audio": "🔊 Аудио",
-
         "cat_general": "📚 Общий",
         "cat_engineering": "⚙️ Инженерия",
         "cat_economics": "💰 Экономика",
@@ -29,7 +28,6 @@ TEXT = {
         "help": "📖 Хэрхэн ашиглах вэ",
         "back": "⬅️ Буцах",
         "audio": "🔊 Аудио",
-
         "cat_general": "📚 Ерөнхий",
         "cat_engineering": "⚙️ Инженер",
         "cat_economics": "💰 Эдийн засаг",
@@ -45,7 +43,6 @@ TEXT = {
         "help": "📖 How to use",
         "back": "⬅️ Back",
         "audio": "🔊 Audio",
-
         "cat_general": "📚 General",
         "cat_engineering": "⚙️ Engineering",
         "cat_economics": "💰 Economics",
@@ -119,5 +116,14 @@ def audio_button(lang: str, word: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "audio"), callback_data=f"audio:{word}")]
+        ]
+    )
+
+
+def quiz_keyboard(options: list[tuple[int, str]]) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=answer, callback_data=f"quiz:{word_id}")]
+            for word_id, answer in options
         ]
     )
